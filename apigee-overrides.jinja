@@ -1,0 +1,75 @@
+{% set CLUSTER_NAME = env['deployment']  %}
+# Sample override configuration for GKE. This assumes that cassandra and other components
+# may share the same Kubernetes worker nodes. This should be used for testing only.
+
+resources:
+- name: {{ CLUSTER_NAME }}-overrides-config
+  type: runtimeconfig.v1beta1.config
+  properties:
+    config: {{ CLUSTER_NAME }}-overrides-config
+    description: Apigee overrides
+- name: {{CLUSTER_NAME}}-overrides
+  type: runtimeconfig.v1beta1.variable
+  properties:
+    parent: $(ref.{{CLUSTER_NAME}}-overrides-config.name)
+    variable: apigee-overrides
+    text: |
+      # Apigee account, org, and env configuration.
+      config:
+        base64Credentials: cmFqZXNobWlAZ29vZ2xlLmNvbTpSZXZhYW50JDI3MTA=
+        envs:
+          - orgName: equifax-hybrid
+            envName: test
+            hostAlias: "*"
+            sslCertPath: "~/.ssh/ingress-cert.crt"
+            sslKeyPath: "~/.ssh/ingress-cert.key"
+      mp:
+        nodeSelector:
+          key: cloud.google.com/gke-nodepool
+          value: apigee-runtime
+
+      # Cassandra configuration. When using GKE, persistent volume provisioning is dynamic and leverages
+      # GCE Persistent Disks (SSD). If a node pool is not created as "regional", then the replicationType
+      # for the gcepd configuration must be set to "none".
+      cassandra:
+        storage:
+          type: gcepd
+          capacity: 50Gi
+          gcepd:
+            replicationType: none
+        sslRootCAPath: "~/.ssh/cassandra.crt"
+        sslCertPath: "~/.ssh/cassandra.crt"
+        sslKeyPath: "~/.ssh/cassandra-root.key"
+        auth:
+          default:
+            password: "abc123"
+          admin:
+            user: "cass_admin_user"
+            password: "abc234"
+          ddl:
+            user: "cass_ddl_user"
+            password: "abc345"
+          dml:
+            user: "cass_dml_user"
+            password: "abc456"
+        nodeSelector:
+          key: cloud.google.com/gke-nodepool
+          value: apigee-data
+
+      mart:
+        hostAlias: "*"
+        sslCertPath: "~/.ssh/mart-server.crt"
+        sslKeyPath: "~/.ssh/mart-server.key"
+
+      # By default, logger and metrics are enabled and requires below details
+      # GCP project and cluster
+      k8s_cluster_name: hybrid
+      k8s_cluster_location: us-central-1
+
+      logger:
+        serviceAccountPath: "<path to a file>"
+        enableLogging: false
+
+      metrics:
+        serviceAccountPath: "<path to a file>"
+        enableMetrics: false

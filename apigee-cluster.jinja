@@ -1,0 +1,377 @@
+{% set CLUSTER_NAME = env['deployment'] + '-' + env['name'] %}
+{% set DEPLOYMENT_NAME = env['deployment'] %}
+
+resources:
+- name: {{ properties['k8s_cluster'].name }}
+  type: container.v1.cluster
+  properties:
+    zone: {{ properties['k8s_cluster'].zone }}
+    cluster:
+      name: {{ properties['k8s_cluster'].name }}
+      {% if properties["k8s_cluster"].monitoringService %}
+      monitoringService: {{ properties["k8s_cluster"].monitoringService }}
+      {% endif %}
+      {% if properties["k8s_cluster"].httpLoadBalancing is defined %}
+      addonsConfig:
+        httpLoadBalancing:
+          disabled: {{ not properties["k8s_cluster"].httpLoadBalancing }}
+      {% endif %}
+      {% if properties["k8s_cluster"].locations %}
+      locations: {{ properties["k8s_cluster"].locations.split(",") }}
+      {% endif %}
+      {% if properties["k8s_cluster"].currentMasterVersion %}
+      currentMasterVersion: {{ properties["k8s_cluster"].currentMasterVersion }}
+      {% endif %}
+      {% if properties["k8s_cluster"].initialClusterVersion %}
+      initialClusterVersion: {{ properties["k8s_cluster"].initialClusterVersion }}
+      {% endif %}
+      nodePools:
+      - name: apigee-data
+        config:
+          metadata:
+            "disable-legacy-endpoints": "true"
+          machineType: {{ properties["k8s_cluster"].instanceType }}
+          diskSizeGb: {{ properties["k8s_cluster"].diskSizeGb }}
+          oauthScopes:
+          - https://www.googleapis.com/auth/logging.write
+          - https://www.googleapis.com/auth/monitoring
+          - https://www.googleapis.com/auth/devstorage.read_only
+          imageType: {{ properties["k8s_cluster"].imageType }}
+          labels:
+            "apigee.com/apigee-logger-enabled": "true"
+        {% if properties["k8s_cluster"].nodeVersion %}
+        version: {{ properties["k8s_cluster"].nodeVersion }}
+        {% endif %}
+        initialNodeCount: {{ properties["k8s_cluster"].initialNodeCount }}
+        autoscaling:
+          enabled: {{ properties["k8s_cluster"].autoscaling }}
+          {% if properties["k8s_cluster"].autoscaling %}
+          minNodeCount: 3
+          maxNodeCount: 4
+          {% endif %}
+        management:
+          autoUpgrade: {{ properties["k8s_cluster"].autoUpgrade }}
+          autoRepair: {{ properties["k8s_cluster"].autoRepair }}
+      - name: apigee-runtime
+        config:
+          metadata:
+            "disable-legacy-endpoints": "true"
+          machineType: {{ properties["k8s_cluster"].instanceType }}
+          diskSizeGb: {{ properties["k8s_cluster"].diskSizeGb }}
+          oauthScopes:
+          - https://www.googleapis.com/auth/logging.write
+          - https://www.googleapis.com/auth/monitoring
+          - https://www.googleapis.com/auth/devstorage.read_only
+          imageType: {{ properties["k8s_cluster"].imageType  }}
+          labels:
+            "apigee.com/apigee-logger-enabled": "true"
+        {% if properties["k8s_cluster"].nodeVersion %}
+        version: {{ properties["k8s_cluster"].nodeVersion }}
+        {% endif %}
+        initialNodeCount: {{ properties["k8s_cluster"].initialNodeCount }}
+        autoscaling:
+          enabled: {{ properties["k8s_cluster"].autoscaling }}
+          {% if properties["k8s_cluster"].autoscaling %}
+          minNodeCount: 3
+          maxNodeCount: 4
+          {% endif %}
+        management:
+          autoUpgrade: {{ properties["k8s_cluster"].autoUpgrade }}
+          autoRepair: {{ properties["k8s_cluster"].autoRepair }}
+- type: runtimeconfig.v1beta1.config
+  name: {{ CLUSTER_NAME }}-config
+  properties:
+    config: {{ CLUSTER_NAME }}-config
+- type: runtimeconfig.v1beta1.waiter
+  name: {{ CLUSTER_NAME }}-waiter
+  metadata:
+    dependsOn:
+    - {{ CLUSTER_NAME }}-config
+  properties:
+    parent: $(ref.{{ CLUSTER_NAME }}-config.name)
+    waiter: {{ CLUSTER_NAME }}-waiter
+    timeout: 900s
+    success:
+      cardinality:
+        path: /success
+        number: 1
+    failure:
+      cardinality:
+        path: /failure
+        number: 1
+- name: {{ CLUSTER_NAME }}-vm
+  type: compute.v1.instance
+  metadata:
+    dependsOn: 
+    - {{ properties['k8s_cluster'].name }}
+  properties:
+    zone: {{ properties['k8s_cluster'].zone }}
+    machineType: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["k8s_cluster"].zone }}/machineTypes/{{ properties["k8s_cluster"].instanceType }}
+    tags:
+      items:
+      -  apigee-hybrid
+    serviceAccounts:
+      - email: "default"
+        scopes:
+        - https://www.googleapis.com/auth/cloud-platform
+        - https://www.googleapis.com/auth/cloudplatformprojects
+        - https://www.googleapis.com/auth/compute
+        - https://www.googleapis.com/auth/logging.write
+        - https://www.googleapis.com/auth/monitoring
+        - https://www.googleapis.com/auth/servicecontrol
+        - https://www.googleapis.com/auth/service.management.readonly
+        - https://www.googleapis.com/auth/service.management
+        - https://www.googleapis.com/auth/userinfo.email
+
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/global/networks/default
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        diskName: {{ CLUSTER_NAME }}-vm-disk
+        sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+    metadata:
+      items:
+      - key: mart_server_key
+        value: |
+          {{ imports[properties['apigee'].mart.key] | indent(10) }}  
+      - key: mart_server_crt
+        value: |
+          {{ imports[properties['apigee'].mart.crt] | indent(10)}}
+      - key: cassandra_key
+        value: |
+          {{ imports[properties['apigee'].cassandra.key] | indent(10) }}
+      - key: cassandra_crt
+        value: |
+          {{ imports[properties['apigee'].cassandra.crt] | indent(10) }} 
+      - key: cassandra_root
+        value: |
+          {{ imports[properties['apigee'].cassandra.root] | indent(10) }}
+      {% for env in properties['apigee'].envs  %}
+      - key: ingress_server_{{ env.name }}_key
+        value: |
+          {{ imports[ env.key ] | indent(10) }}
+      - key: ingress_server_{{ env.name }}_crt
+        value: |
+          {{ imports[env.crt] | indent(10) }}
+      {% endfor %}
+      - key: startup-script
+        value: |
+          #!/bin/bash -x
+
+          metadata_value() {
+            curl --retry 5 -sfH "Metadata-Flavor: Google" \
+              "http://metadata/computeMetadata/v1/$1"
+          }
+
+          export ENVS="{{ properties['apigee'].envs }}"
+
+          apt-get update && apt-get install -y git google-cloud-sdk curl kubectl
+
+
+          #Installation steps for apigee hybrid
+          mkdir -p /opt/apigee/
+          mkdir -p /opt/apigee/config/
+          export HOME=/opt/apigee/
+
+          cd /opt/apigee
+
+          
+
+
+          metadata_value "instance/attributes/cassandra_key" > /opt/apigee/config/cassandra.key
+          metadata_value "instance/attributes/cassandra_crt" > /opt/apigee/config/cassandra.crt
+          metadata_value "instance/attributes/cassandra_root" > /opt/apigee/config/cassandra-root.crt
+
+          
+          curl -LO https://storage.googleapis.com/edge-hybrid-apigeectl/apigeectl_beta2_$(curl -s  https://storage.googleapis.com/edge-hybrid-apigeectl/current-version.txt)_linux_64.tar.gz
+
+          tar -xvf apigeectl_beta2_$(curl -s https://storage.googleapis.com/edge-hybrid-apigeectl/current-version.txt)_linux_64.tar.gz
+
+          mv apigeectl_beta2_$(curl -s https://storage.googleapis.com/edge-hybrid-apigeectl/current-version.txt)_linux_64 edge-hybrid
+
+          
+          resource={{ DEPLOYMENT_NAME }}
+          project_id=$(gcloud config get-value project)
+          org="{{ properties['apigee'].org }}"
+          mart_dns="{{ properties['apigee'].mart.hostAlias }}"
+
+          echo {{ properties['apigee'] }} >> /tmp/overrides-0.yaml
+
+          cd /tmp
+
+          #Install tools to manipulate overrides yaml file
+
+          apt-get install python-yaml -y
+          pip install pyyaml
+          apt install python-pip -y
+          apt-get install jq -y
+
+          cat overrides-0.yaml | python -c 'import json, sys, yaml ; y=yaml.safe_load(sys.stdin.read()) ; print(json.dumps(y))' | jq . > overrides-1.json
+
+          cat overrides-1.json | jq '.metrics.serviceAccountPath = "/opt/apigee/config/metrics-writer.json"' | jq '.logger.serviceAccountPath = "opt/apigee/config/logs-writer.json"' | jq '.synchronizer.serviceAccountPath = "/opt/apigee/config/admin-reader-service.json"' | jq '.authz.serviceAccountPath = "/opt/apigee/config/admin-reader-service.json"' > overrides-2.json
+
+          cat overrides-2.json | jq '.cassandra |= with_entries(.key |= sub("^key$"; "sslKeyPath"))' | jq '.cassandra |= with_entries(.key |= sub("^root$"; "sslRootCAPath"))' | jq '.cassandra |= with_entries(.key |= sub("^crt$"; "sslCertPath"))' | jq '.cassandra.sslKeyPath = "/opt/apigee/config/cassandra.key"' | jq '.cassandra.sslRootCAPath = "/opt/apigee/config/cassandra-root.crt"' | jq '.cassandra.sslCertPath = "/opt/apigee/config/cassandra.crt"' > overrides-3.json
+
+          cat overrides-3.json | jq '.mart |= with_entries(.key |= sub("^key$"; "sslKeyPath"))' | jq '.mart |= with_entries(.key |= sub("^crt$"; "sslCertPath"))' | jq '.mart.sslKeyPath = "/opt/apigee/config/mart_server.key"' | jq '.mart.sslCertPath = "/opt/apigee/config/mart_server.crt"' > overrides-4.json
+
+          
+          #Handle environments.
+
+          echo $ENVS > envs.json
+          cat envs.json | python -c 'import json, sys, yaml ; y=yaml.safe_load(sys.stdin.read()) ; print(json.dumps(y))' | jq . > envs-1.json
+
+          echo "envs-1 generated"
+          sleep 20
+
+          for row in $(cat envs-1.json | jq -r '.[] | @base64'); 
+          do
+          _jq() {
+            echo ${row} | base64 --decode | jq -r ${1}
+          }
+          
+          env=$(_jq '.name')
+
+          echo $env
+  
+          cat overrides-4.json | jq  --arg env $env '(.envs[] | select(.name==$env)| .crt) = "/opt/apigee/config/ingress_server_"+$env+".crt" | (.envs[] | select(.name==$env)| .key)|= "/opt/apigee/config/ingress_server_"+$env+".key" | (.envs[] | select(.name==$env) | .) |=with_entries(.key |= sub("^crt$"; "sslCertPath")) | (.envs[] | select(.name==$env) | .) |=with_entries(.key |= sub("^key$"; "sslKeyPath"))'  > overrides-4.tmp.json
+       
+          sleep 10
+          mv overrides-4.tmp.json overrides-4.json
+          sleep 10
+          metadata_value "instance/attributes/ingress_server_"$env"_key" > /opt/apigee/config/ingress_server_$env.key
+
+          metadata_value "instance/attributes/ingress_server"_$env"_crt" > /opt/apigee/config/ingress_server_$env.crt
+
+          done
+
+          #Convert the genenared json to yaml
+          python -c 'import sys, yaml, json; yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)' < overrides-4.json > overrides-4.yaml
+
+
+          ###Actual stuff begins here
+
+          cd /opt/apigee/
+          cp /tmp/overrides-4.yaml edge-hybrid/overrides.yaml
+
+          gcloud projects remove-iam-policy-binding $project_id --member serviceAccount:$resource-admin-writer@$project_id.iam.gserviceaccount.com --role roles/apigee.admin
+
+          gcloud projects remove-iam-policy-binding $project_id --member serviceAccount:$resource-admin-reader@$project_id.iam.gserviceaccount.com --role roles/apigee.readOnlyAdmin
+
+          gcloud projects remove-iam-policy-binding $project_id --member serviceAccount:$resource-logs-writer@$project_id.iam.gserviceaccount.com --role roles/logging.logWriter
+
+          gcloud projects remove-iam-policy-binding $project_id --member serviceAccount:$resource-metrics-writer@$project_id.iam.gserviceaccount.com --role roles/monitoring.metricWriter
+
+          gcloud projects remove-iam-policy-binding $project_id --member serviceAccount:$resource-cassandra-backups@$project_id.iam.gserviceaccount.com --role roles/storage.objectAdmin
+
+
+          sleep 60
+
+
+          gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-admin-writer@$project_id.iam.gserviceaccount.com --role roles/apigee.admin
+
+          gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-admin-reader@$project_id.iam.gserviceaccount.com --role roles/apigee.readOnlyAdmin
+
+          gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-logs-writer@$project_id.iam.gserviceaccount.com --role roles/logging.logWriter
+
+          gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-metrics-writer@$project_id.iam.gserviceaccount.com --role roles/monitoring.metricWriter
+
+          gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-cassandra-backups@$project_id.iam.gserviceaccount.com --role roles/storage.objectAdmin
+
+          sleep 60
+
+          mkdir -p /opt/apigee/config/
+          gcloud iam service-accounts keys create /opt/apigee/config/admin-writer-service.json --iam-account $resource-admin-writer@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create /opt/apigee/config/admin-reader-service.json --iam-account $resource-admin-reader@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create /opt/apigee/config/logs-writer.json --iam-account $resource-logs-writer@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create /opt/apigee/config/metrics-writer.json --iam-account $resource-metrics-writer@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create /opt/apigee/config/cassandra-backups.json --iam-account $resource-cassandra-backups@$project_id.iam.gserviceaccount.com
+
+          sleep 60
+
+          export GOOGLE_APPLICATION_CREDENTIALS=/opt/apigee/config/admin-writer-service.json 
+          export TOKEN=$(gcloud auth application-default print-access-token)
+
+          postDataJson="{\"identities\":[\"serviceAccount:$resource-admin-reader@$project_id.iam.gserviceaccount.com\"]}"
+
+          echo $postDataJson
+
+          #curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type:application/json" "https://apigee.googleapis.com/v1/organizations/$org:setSyncAuthorization" -d ${postDataJson}
+
+
+          curl -X POST -H "Content-Type:application/json" -H "Authorization: Bearer $TOKEN"  "https://apigee.googleapis.com/v1/organizations/$org:setSyncAuthorization" -d ''
+
+          sleep 30
+
+          curl -X POST https://apigee.googleapis.com/v1/organizations/$org:setSyncAuthorization -H "Content-Type:application/json" -H "Authorization: Bearer $TOKEN" -d "{\"identities\":[\"serviceAccount:$resource-admin-reader@$project_id.iam.gserviceaccount.com\"]}"
+          
+          sleep 30
+
+          curl -X POST -H "Content-Type:application/json" -H "Authorization: Bearer $TOKEN"  "https://apigee.googleapis.com/v1/organizations/$org:getSyncAuthorization" -d ''
+
+          martPostData="{\"name\" : \"$org\",\"properties\" : {\"property\" : [ {\"name\" :\"features.hybrid.enabled\",\"value\" : \"true\"}, {\"name\" : \"features.mart.server.endpoint\",\"value\" : \"https://$mart_dns\"} ]}}"
+
+          echo ${martPostData}
+
+          curl  -X POST https://apigee.googleapis.com/v1/organizations/$org -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"name\" : \"$org\",\"properties\" : {\"property\" : [ {\"name\" :\"features.hybrid.enabled\",\"value\" : \"true\"}, {\"name\" : \"features.mart.server.endpoint\",\"value\" : \"https://$mart_dns\"} ]}}"
+
+
+          export PATH=$PATH:$PWD/edge-hybrid
+
+          cd edge-hybrid
+
+          gcloud container clusters get-credentials {{ properties['k8s_cluster'].name }} --zone {{ properties['k8s_cluster'].zone }}
+
+          kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
+
+          metadata_value "instance/attributes/mart_server_key" > /opt/apigee/config/mart_server.key
+          metadata_value "instance/attributes/mart_server_crt" > /opt/apigee/config/mart_server.crt
+
+
+          ./apigeectl apply -v beta2
+          sleep 30
+          ./apigeectl apply -v beta2
+          sleep 30
+
+
+          #Patch mart or ingress based on external IP provided or not
+
+          mart_external_ip="{{ properties['apigee'].mart.gcpExternalIp }}"
+          if [ -n "${mart_external_ip}" ] && [ "${mart_external_ip}" != "None" ]; then
+            kubectl patch svc apigee-mart-istio-ingressgateway -n apigee --patch "{\"spec\": {\"loadBalancerIP\": \"$mart_external_ip\"}}"
+          fi
+
+
+          ##Need some work here - Loop
+          for row in $(cat /tmp/envs-1.json | jq -r '.[] | @base64'); 
+          do
+            _jq() {
+              echo ${row} | base64 --decode | jq -r ${1}
+            }
+
+            env=$(_jq '.name')
+            ingress_external_ip=$(_jq '.gcpExternalIp')
+
+            if [ -n "${ingress_external_ip}" ] && [ "${ingress_external_ip}" != "None" ]  && [ "${ingress_external_ip}" != null ]; then
+              
+              kubectl patch svc istio-ingressgateway -n apigee --patch "{\"spec\": {\"loadBalancerIP\": \"$ingress_external_ip\"}}"
+            
+            else
+              echo "kubectl patch not required" 
+            fi
+          done
+
+
+          gcloud beta runtime-config configs variables set success/{{ CLUSTER_NAME }}-waiter success --config-name $(ref.{{ CLUSTER_NAME }}-config.name)
+
+          
