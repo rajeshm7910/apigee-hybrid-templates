@@ -3,7 +3,7 @@
 ## Getting Started
 
 #### Certificates
-Add certificates in config/ directories
+Add/Update mart,ingress and cassandra Key/certificates in config/ 
 
 #### Deploy 
 
