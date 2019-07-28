@@ -34,7 +34,6 @@ Allocate following roles to the account -
 
 ```
 Kubernetes Engine Admin
-Kubernetes Engine Cluster Admin
 Editor
 Project IAM Admin
 ```
