@@ -12,7 +12,7 @@ This project allows you to install apigee hybid runtime in Google Cloud Platform
   gcloud config set project <project-id>
 ```
 
-## Enable APIS
+### Enable APIS
 
 Enable Following APIS in the GCP Project
 
@@ -22,7 +22,7 @@ Enable Following APIS in the GCP Project
 - IAM API
 - Apigee
 
-## IAM Roles
+### IAM Roles
 
 - Allocate Owner access to default cloudservices account :
 
@@ -41,9 +41,6 @@ Kubernetes Engine Admin
 Editor
 Project IAM Admin
 ```
-
-## Apigee Hybrid 
-Please go through https://docs.apigee.com/hybrid to know more about Apigee Hybrid .
 
 
 ## Getting Started
