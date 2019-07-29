@@ -20,7 +20,7 @@ Enable Following APIS in the GCP Project
 
 ## IAM Roles
 
-- Allocate Owner following Access to default cloudservices account :
+- Allocate Owner access to default cloudservices account :
 
 Go to IAM & Admin -> IAM from GCP Console. You will find a IAM account like 00000000@cloudservices.gserviceaccount.com
 Allocate Owner access to the account
@@ -44,6 +44,64 @@ Please go through https://docs.apigee.com/hybrid to know more about Apigee Hybri
 
 ## Getting Started
 - Keep Key/Certificate pair in config/ directory
+
+- Edit apigee-cluster.yaml and edit apigee variables. These apigee variables are same as overrides.yaml
+
+
+```
+imports:
+- path: config/ingress-server.key
+  name: ingress-server.key
+- path: config/ingress-server.crt
+  name: ingress-server.crt
+- path: config/mart-server.key
+  name: mart-server.key
+- path: config/mart-server.crt
+  name: mart-server.crt
+- path: config/cassandra.key
+  name: cassandra.key
+- path: config/cassandra.crt
+  name: cassandra.crt
+- path: config/cassandra-root.crt
+  name: cassandra-root.crt
+
+ apigee:
+      envs:
+        - name: test
+          crt: ingress-server.crt
+          key: ingress-server.key
+          hostAlias: srinandans-demo-test.hybrid-apigee.net
+          pollInterval: 60
+          gcpExternalIp: 104.198.154.187
+        - name: prod
+          crt: ingress-server.crt
+          key: ingress-server.key
+          hostAlias: srinandans-demo-prod.hybrid-apigee.net
+          pollInterval: 60
+          gcpExternalIp: 104.198.154.187
+      mart:
+        nodeSelector:
+          key: cloud.google.com/gke-nodepool
+          value: apigee-runtime
+        crt: mart-server.crt
+        key: mart-server.key
+        hostAlias: srinandans-demo-mart.hybrid-apigee.net
+        gcpExternalIp: 35.202.16.238
+      cassandra:
+        pullPolicy: Always
+        nodeSelector:
+          key: cloud.google.com/gke-nodepool
+          value: apigee-data
+        storage:
+          type: gcepd
+          capacity: 500Mi
+          gcepd:
+            replicationType: none
+        root: cassandra-root.crt
+        crt: cassandra.crt
+        key: cassandra.key
+```
+- sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt.
 
 
 - Deploy to GCP
