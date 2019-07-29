@@ -48,7 +48,7 @@ Project IAM Admin
 
 - Edit apigee-cluster.yaml and edit apigee variables. These apigee variables are same as overrides.yaml except following changes
   
-  - *sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt*
+  - *sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt as we upload these keys*
   - *serviceAccount path doesn't need to be set to any values. This will be set when you deploy*
   - *gcpExternalIp property can be used to specify external LB for mart or ingress*
 
