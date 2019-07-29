@@ -74,13 +74,13 @@ imports:
         - name: test
           crt: ingress-server.crt
           key: ingress-server.key
-          hostAlias: srinandans-demo-test.hybrid-apigee.net
+          hostAlias: amer-cs-hybrid-demo1.hybrid-apigee.net
           pollInterval: 60
           gcpExternalIp: 104.198.154.187
         - name: prod
           crt: ingress-server.crt
           key: ingress-server.key
-          hostAlias: srinandans-demo-prod.hybrid-apigee.net
+          hostAlias: amer-cs-hybrid-demo1.hybrid-apigee.net
           pollInterval: 60
           gcpExternalIp: 104.198.154.187
       mart:
@@ -89,7 +89,7 @@ imports:
           value: apigee-runtime
         crt: mart-server.crt
         key: mart-server.key
-        hostAlias: srinandans-demo-mart.hybrid-apigee.net
+        hostAlias: amer-cs-hybrid-mart.hybrid-apigee.net
         gcpExternalIp: 35.202.16.238
       cassandra:
         pullPolicy: Always
@@ -114,7 +114,7 @@ imports:
     ```
     RESOURCE_NAME is the name you give to your deployments. All the GCP resources will be tagged under that RESOURCE. All the GCP resources are created with name  having prefix of "RESOURCE_NAME".
     e.g :
-    
+
 ```sh
  /deploy.sh my-hybrid
 The fingerprint of the deployment is 8FaDn2YGgCmgZxD-Pi71hA==
