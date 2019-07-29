@@ -45,10 +45,12 @@ Please go through https://docs.apigee.com/hybrid to know more about Apigee Hybri
 ## Getting Started
 - Keep Key/Certificate pair in config/ directory
 
-- Edit apigee-cluster.yaml and edit apigee variables. These apigee variables are same as overrides.yaml except 
+- Edit apigee-cluster.yaml and edit apigee variables. These apigee variables are same as overrides.yaml except following changes
   
   - *sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt*
-  - *serviceAccount path doesn't need to be set to any values. This will be automatically set when hybrid cluster is created*
+  - *serviceAccount path doesn't need to be set to any values. This will be set when you deploy*
+  - *gcpExternalIp property can be used to specify external LB for mart or ingress*
+
 
 ```
 imports:
@@ -112,6 +114,7 @@ imports:
     ```
     RESOURCE_NAME is the name you give to your deployments. All the GCP resources will be tagged under that RESOURCE. All the GCP resources are created with name  having prefix of "RESOURCE_NAME".
     e.g :
+    
 ```sh
  /deploy.sh my-hybrid
 The fingerprint of the deployment is 8FaDn2YGgCmgZxD-Pi71hA==
