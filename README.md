@@ -45,8 +45,10 @@ Please go through https://docs.apigee.com/hybrid to know more about Apigee Hybri
 ## Getting Started
 - Keep Key/Certificate pair in config/ directory
 
-- Edit apigee-cluster.yaml and edit apigee variables. These apigee variables are same as overrides.yaml
-
+- Edit apigee-cluster.yaml and edit apigee variables. These apigee variables are same as overrides.yaml except 
+  
+  - *sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt*
+  - *serviceAccount path doesn't need to be set to any values. This will be automatically set when hybrid cluster is created*
 
 ```
 imports:
@@ -101,10 +103,7 @@ imports:
         crt: cassandra.crt
         key: cassandra.key
 ```
-    - *sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt*
-
-    - *serviceAccount path doesn't need to be set to any values. This will be automatically set when hybrid cluster is created*
-
+   
 
 - Deploy to GCP
 
