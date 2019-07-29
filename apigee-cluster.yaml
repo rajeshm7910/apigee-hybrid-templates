@@ -47,29 +47,29 @@ resources:
         - name: test
           crt: ingress-server.crt
           key: ingress-server.key
-          hostAlias: "srinandans-demo-test.hybrid-apigee.net"
+          hostAlias: srinandans-demo-test.hybrid-apigee.net
           pollInterval: 60
-          gcpExternalIp: "104.198.154.187"
+          gcpExternalIp: 104.198.154.187
         - name: prod
           crt: ingress-server.crt
           key: ingress-server.key
-          hostAlias: "srinandans-demo-prod.hybrid-apigee.net"
+          hostAlias: srinandans-demo-prod.hybrid-apigee.net
           pollInterval: 60
-          gcpExternalIp: "104.198.154.187"
+          gcpExternalIp: 104.198.154.187
       mart:
         nodeSelector:
           key: cloud.google.com/gke-nodepool
           value: apigee-runtime
         crt: mart-server.crt
         key: mart-server.key
-        hostAlias: "srinandans-demo-mart.hybrid-apigee.net"
+        hostAlias: srinandans-demo-mart.hybrid-apigee.net
         resources:
           requests:
             cpu: 250m
             memory: 160Mi
         replicaCountMin: 1
         replicaCountMax: 1
-        gcpExternalIp: "35.202.16.238"
+        gcpExternalIp: 35.202.16.238
       # Cassandra configuration. When using GKE, persistent volume provisioning is dynamic and leverages
       # GCE Persistent Disks (SSD). If a node pool is not created as "regional", then the replicationType
       # for the gcepd configuration must be set to "none".
@@ -99,14 +99,14 @@ resources:
         nodeSelector:
           key: cloud.google.com/gke-nodepool
           value: apigee-runtime
-        serviceAccountPath: "none"
+        serviceAccountPath: 
         imagePullPolicy: Always
 
       authz:
         nodeSelector:
           key: cloud.google.com/gke-nodepool
           value: apigee-runtime
-        serviceAccountPath: "none"
+        serviceAccountPath: 
         imagePullPolicy: Always
 
       # Runtime components
@@ -139,11 +139,11 @@ resources:
         nodeSelector:
           key: cloud.google.com/gke-nodepool
           value: apigee-runtime
-        serviceAccountPath: "none"
+        serviceAccountPath: 
       metrics:
         enableMetrics: true
         nodeSelector:
           key: cloud.google.com/gke-nodepool
           value: apigee-runtime
-        serviceAccountPath: "none"
+        serviceAccountPath: 
 

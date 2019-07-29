@@ -271,7 +271,7 @@ resources:
           gcloud projects remove-iam-policy-binding $project_id --member serviceAccount:$resource-cassandra-backups@$project_id.iam.gserviceaccount.com --role roles/storage.objectAdmin
 
 
-          sleep 60
+          sleep 30
 
 
           gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-admin-writer@$project_id.iam.gserviceaccount.com --role roles/apigee.admin
@@ -284,7 +284,7 @@ resources:
 
           gcloud projects add-iam-policy-binding $project_id --member serviceAccount:$resource-cassandra-backups@$project_id.iam.gserviceaccount.com --role roles/storage.objectAdmin
 
-          sleep 60
+          sleep 30
 
           mkdir -p /opt/apigee/config/
           gcloud iam service-accounts keys create /opt/apigee/config/admin-writer-service.json --iam-account $resource-admin-writer@$project_id.iam.gserviceaccount.com
@@ -297,7 +297,7 @@ resources:
 
           gcloud iam service-accounts keys create /opt/apigee/config/cassandra-backups.json --iam-account $resource-cassandra-backups@$project_id.iam.gserviceaccount.com
 
-          sleep 60
+          sleep 30
 
           export GOOGLE_APPLICATION_CREDENTIALS=/opt/apigee/config/admin-writer-service.json 
           export TOKEN=$(gcloud auth application-default print-access-token)

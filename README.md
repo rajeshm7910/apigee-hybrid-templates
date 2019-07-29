@@ -101,7 +101,8 @@ imports:
         crt: cassandra.crt
         key: cassandra.key
 ```
-- sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt.
+*sslKeyPath is key, sslRootCAPath is root and sslCertPath is crt*
+*serviceAccount path doesn't need to be set to any values. This will be automatically set when hybrid cluster is created*
 
 
 - Deploy to GCP
