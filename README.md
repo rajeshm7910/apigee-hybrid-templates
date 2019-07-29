@@ -7,6 +7,10 @@ This project allows you to install apigee hybid runtime in Google Cloud Platform
 ### gcloud
 - Install gcloud sdk from https://cloud.google.com/sdk/downloads
 - Initialize your account
+- Set gcloud to your gcp project
+```
+  gcloud config set project <project-id>
+```
 
 ## Enable APIS
 
