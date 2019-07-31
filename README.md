@@ -1,6 +1,6 @@
 # apigee-hybrid-gcp
 
-This project allows you to install apigee hybid runtime in Google Cloud Platform using GCP's deployment manager. 
+This project allows you to install apigee hybrid runtime in Google Cloud Platform using GCP's deployment manager. 
 
 ## Prerequisite
 
