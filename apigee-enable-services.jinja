@@ -12,9 +12,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+{% set project = env["project"] %}
+{% set deployment = env["deployment"] %}
+
 resources:
-- name: {{ env['deployment'] }}-enable
-  type: deploymentmanager.v2.virtual.enableService
-  properties:
-    consumerId: "project:{{ env['project'] }}"
-    serviceName: "apigee.googleapis.com"
+  - name: services-apigee
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "apigee.googleapis.com"
+
+  - name: services-iam
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "iam.googleapis.com" 
+
+  - name: services-crm
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "cloudresourcemanager.googleapis.com"
+
+  - name: services-runtimeconfig
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "runtimeconfig.googleapis.com"
+
+  - name: services-sourcerepo
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "sourcerepo.googleapis.com"
+
+  - name: services-logging
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "logging.googleapis.com"
+
+  - name: services-monitoring
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: "monitoring.googleapis.com"
+

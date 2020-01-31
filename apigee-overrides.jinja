@@ -1,75 +1,218 @@
-{% set CLUSTER_NAME = env['deployment']  %}
-# Sample override configuration for GKE. This assumes that cassandra and other components
-# may share the same Kubernetes worker nodes. This should be used for testing only.
+{% set project = env["project"] %}
+{% set org =  env["project"] %}
+{% set deployment = env["deployment"] %}
+
+{% set CLUSTER_NAME = env['deployment'] + '-' + env['name'] %}
+{% set DEPLOYMENT_NAME = env['deployment'] %}
 
 resources:
-- name: {{ CLUSTER_NAME }}-overrides-config
-  type: runtimeconfig.v1beta1.config
+- name: {{ CLUSTER_NAME }}
+  type: compute.v1.instance   
+  metadata:
+    dependsOn: 
+     - {{ properties['k8s_cluster'].name }}
+     - get-iam-policy
+     - patch-iam-policy
   properties:
-    config: {{ CLUSTER_NAME }}-overrides-config
-    description: Apigee overrides
-- name: {{CLUSTER_NAME}}-overrides
-  type: runtimeconfig.v1beta1.variable
-  properties:
-    parent: $(ref.{{CLUSTER_NAME}}-overrides-config.name)
-    variable: apigee-overrides
-    text: |
-      # Apigee account, org, and env configuration.
-      config:
-        base64Credentials: cmFqZXNobWlAZ29vZ2xlLmNvbTpSZXZhYW50JDI3MTA=
-        envs:
-          - orgName: equifax-hybrid
-            envName: test
-            hostAlias: "*"
-            sslCertPath: "~/.ssh/ingress-cert.crt"
-            sslKeyPath: "~/.ssh/ingress-cert.key"
-      mp:
-        nodeSelector:
-          key: cloud.google.com/gke-nodepool
-          value: apigee-runtime
+    zone: {{ properties['k8s_cluster'].zone }}
+    machineType: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["k8s_cluster"].zone }}/machineTypes/{{ properties["k8s_cluster"].instanceType }}
+    tags:
+      items:
+      -  apigee-hybrid
+    serviceAccounts:
+      - email: "default"
+        scopes:
+          - https://www.googleapis.com/auth/cloud-platform
+          - https://www.googleapis.com/auth/cloudplatformprojects
+          - https://www.googleapis.com/auth/compute
+          - https://www.googleapis.com/auth/logging.write
+          - https://www.googleapis.com/auth/monitoring
+          - https://www.googleapis.com/auth/servicecontrol
+          - https://www.googleapis.com/auth/service.management.readonly
+          - https://www.googleapis.com/auth/service.management
+          - https://www.googleapis.com/auth/userinfo.email
 
-      # Cassandra configuration. When using GKE, persistent volume provisioning is dynamic and leverages
-      # GCE Persistent Disks (SSD). If a node pool is not created as "regional", then the replicationType
-      # for the gcepd configuration must be set to "none".
-      cassandra:
-        storage:
-          type: gcepd
-          capacity: 50Gi
-          gcepd:
-            replicationType: none
-        sslRootCAPath: "~/.ssh/cassandra.crt"
-        sslCertPath: "~/.ssh/cassandra.crt"
-        sslKeyPath: "~/.ssh/cassandra-root.key"
-        auth:
-          default:
-            password: "abc123"
-          admin:
-            user: "cass_admin_user"
-            password: "abc234"
-          ddl:
-            user: "cass_ddl_user"
-            password: "abc345"
-          dml:
-            user: "cass_dml_user"
-            password: "abc456"
-        nodeSelector:
-          key: cloud.google.com/gke-nodepool
-          value: apigee-data
+    networkInterfaces:
+    - network: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/global/networks/default
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        diskName: {{ CLUSTER_NAME }}-vm-disk
+        sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+    metadata:
+      items:
+      - key: mart_key
+        value: |
+          {{ imports[properties['apigee'].mart.sslKeyPath] | indent(10) }}  
+      - key: mart_crt
+        value: |
+          {{ imports[properties['apigee'].mart.sslCertPath] | indent(10)}}
+      {% for env in properties['apigee'].envs  %}
+      - key: ingress_{{ env.name }}_key
+        value: |
+          {{ imports[ env.sslKeyPath ] | indent(10) }}
+      - key: ingress_{{ env.name }}_crt
+        value: |
+          {{ imports[env.sslCertPath] | indent(10) }}
+      {% endfor %}
+      - key: startup-script
+        value: |
+          #!/bin/bash -x
+  
+          metadata_value() {
+            curl --retry 5 -sfH "Metadata-Flavor: Google" \
+              "http://metadata/computeMetadata/v1/$1"
+          }
 
-      mart:
-        hostAlias: "*"
-        sslCertPath: "~/.ssh/mart-server.crt"
-        sslKeyPath: "~/.ssh/mart-server.key"
+          
 
-      # By default, logger and metrics are enabled and requires below details
-      # GCP project and cluster
-      k8s_cluster_name: hybrid
-      k8s_cluster_location: us-central-1
+          export ENVS="{{ properties['apigee'].envs }}"
+          apt-get update && apt-get install -y git google-cloud-sdk curl kubectl
 
-      logger:
-        serviceAccountPath: "<path to a file>"
-        enableLogging: false
+          #Installation steps for apigee hybrid
+          mkdir -p /opt/apigee/
+          mkdir -p /opt/apigee/config/
+          export HOME=/opt/apigee/
 
-      metrics:
-        serviceAccountPath: "<path to a file>"
-        enableMetrics: false
+          cd /opt/apigee
+
+          curl -LO https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/$(curl -s https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/current-version.txt)/apigeectl_linux_64.tar.gz
+
+          tar xvzf apigeectl_linux_64.tar.gz -C .
+          mv apigeectl_1.* apigeectl
+          cd ./apigeectl
+          export APIGEECTL_HOME=$PWD
+          mkdir hybrid-files
+          cd hybrid-files
+          mkdir overrides
+          mkdir service-accounts
+          mkdir certs
+
+          ln -s $APIGEECTL_HOME/tools tools
+          ln -s $APIGEECTL_HOME/config config
+          ln -s $APIGEECTL_HOME/templates templates
+          ln -s $APIGEECTL_HOME/plugins plugins
+            
+          resource={{ DEPLOYMENT_NAME }}
+          project_id=$(gcloud config get-value project)
+          org="{{ properties['apigee'].org }}"
+          mart_dns="{{ properties['apigee'].mart.hostAlias }}"
+
+          echo {{ properties['apigee'] }} >> /tmp/overrides-0.yaml
+
+          cd /tmp
+
+          #Install tools to manipulate overrides yaml file
+
+          apt-get install python-yaml -y
+          pip install pyyaml
+          apt install python-pip -y
+          apt-get install jq -y
+
+          metadata_value "instance/attributes/mart_key" > $APIGEECTL_HOME/hybrid-files/certs/mart-server.key
+          metadata_value "instance/attributes/mart_crt" > $APIGEECTL_HOME/hybrid-files/certs/mart-server.pem
+
+          cat overrides-0.yaml | python -c 'import json, sys, yaml ; y=yaml.safe_load(sys.stdin.read()) ; print(json.dumps(y))' | jq . > overrides-1.json
+
+          cat overrides-1.json  | jq '.mart.sslKeyPath = "./certs/mart-server.key"' | jq '.mart.sslCertPath = "./certs/mart-server.pem"' > overrides-2.json
+
+          cp overrides-2.json overrides-3.json
+
+          export ENVS="{{ properties['apigee'].envs }}"
+          echo $ENVS > envs.json
+          cat envs.json | python -c 'import json, sys, yaml ; y=yaml.safe_load(sys.stdin.read()) ; print(json.dumps(y))' | jq . > envs-1.json
+
+          echo "envs-1 generated"
+          sleep 20
+
+          for row in $(cat envs-1.json | jq -r '.[] | @base64'); 
+          do
+          _jq() {
+            echo ${row} | base64 --decode | jq -r ${1}
+          }
+
+          env=$(_jq '.name')
+          echo $env
+          metadata_value "instance/attributes/ingress_"$env"_key" > $APIGEECTL_HOME/hybrid-files/certs/ingress-server-$env.key
+
+          metadata_value "instance/attributes/ingress_"$env"_crt" > $APIGEECTL_HOME/hybrid-files/certs/ingress-server-$env.pem
+
+          cat overrides-3.json | jq  --arg env $env '(.envs[] | select(.name==$env)| .sslCertPath) = "./certs/ingress-server-"+$env+".pem" | (.envs[] | select(.name==$env)| .sslKeyPath)|= "./certs/ingress-server-"+$env+".key"'  > overrides-3.tmp.json
+
+       
+          sleep 10
+          mv overrides-3.tmp.json overrides-3.json
+          sleep 10
+          
+          done
+
+          python -c 'import sys, yaml, json; yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)' < overrides-3.json > overrides-3.yaml
+
+
+          cp /tmp/overrides-3.yaml $APIGEECTL_HOME/hybrid-files/overrides/overrides.yaml
+
+          cd $APIGEECTL_HOME/hybrid-files/service-accounts/
+
+          uniqueId=$(gcloud beta runtime-config configs variables get-value  --config-name $resource-apigee-config uniqueId)
+
+          gcloud iam service-accounts keys create ./$project_id-admin.json --iam-account $resource-$uniqueId-admin@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create ./$project_id-metrics-apigee.json --iam-account $resource-$uniqueId-metrics@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create ./$project_id-synchronizer-apigee.json --iam-account $resource-$uniqueId-synchronizer@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create  ./$project_id-udca-apigee.json --iam-account $resource-$uniqueId-udca@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create ./$project_id-cassandra-apigee.json --iam-account $resource-$uniqueId-cassandra@$project_id.iam.gserviceaccount.com
+
+          gcloud iam service-accounts keys create ./$project_id-mart-apigee.json --iam-account $resource-$uniqueId-mart@$project_id.iam.gserviceaccount.com
+
+
+          sleep 10
+
+          export GOOGLE_APPLICATION_CREDENTIALS=$APIGEECTL_HOME/hybrid-files/service-accounts/$project_id-admin.json 
+          export TOKEN=$(gcloud auth application-default print-access-token)
+
+          postDataJson="{\"identities\":[\"serviceAccount:$resource-$uniqueId-synchronizer@$project_id.iam.gserviceaccount.com\"]}"
+
+          echo $postDataJson
+
+          curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type:application/json" "https://apigee.googleapis.com/v1/organizations/$org:setSyncAuthorization" -d ${postDataJson}
+
+
+          curl -X POST -H "Content-Type:application/json" -H "Authorization: Bearer $TOKEN"  "https://apigee.googleapis.com/v1/organizations/$org:getSyncAuthorization" -d ''
+
+          sleep 10
+
+
+          martPostData="{\"name\" : \"$org\",\"properties\" : {\"property\" : [ {\"name\" :\"features.hybrid.enabled\",\"value\" : \"true\"}, {\"name\" : \"features.mart.server.endpoint\",\"value\" : \"https://$mart_dns\"} ]}}"
+
+          echo ${martPostData}
+
+          curl  -X PUT https://apigee.googleapis.com/v1/organizations/$org -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"name\" : \"$org\",\"properties\" : {\"property\" : [ {\"name\" :\"features.hybrid.enabled\",\"value\" : \"true\"}, {\"name\" : \"features.mart.server.endpoint\",\"value\" : \"https://$mart_dns\"} ]}}"
+
+          sleep 10
+
+          #enable kubernetes api
+          #gcloud services enable container.googleapis.com
+
+          gcloud container clusters get-credentials {{ properties['k8s_cluster'].name }} --zone {{ properties['k8s_cluster'].zone }}
+
+          kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
+
+          
+          cd $APIGEECTL_HOME/hybrid-files/
+         
+          $APIGEECTL_HOME/apigeectl init -f overrides/overrides.yaml
+          $APIGEECTL_HOME/apigeectl check-ready -f overrides/overrides.yaml
+          $APIGEECTL_HOME/apigeectl apply -f overrides/overrides.yaml --dry-run=true
+          $APIGEECTL_HOME/apigeectl apply -f overrides/overrides.yaml
+
+ 
+          gcloud beta runtime-config configs variables set success/{{ CLUSTER_NAME }}-waiter success --config-name $(ref.{{ CLUSTER_NAME }}-config.name)
