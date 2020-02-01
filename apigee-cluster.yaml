@@ -53,10 +53,10 @@ resources:
       autoRepair: false
       imageType: COS
     apigee:
-      gcpProjectID: {{org}}
+      gcpProjectID: {{project_id}}
       # Kubernetes cluster name.
-      k8sClusterName: apigee-hybrid
-        # Apigee org name.
+      k8sClusterName: cluster_name
+      # Apigee org name.
       org: {{org}}
       envs:
             # Apigee environment name.
@@ -69,26 +69,33 @@ resources:
           sslKeyPath: ingress-server.key
             # Service accounts for sync and UDCA.
           serviceAccountPaths:
-            synchronizer: ./service-accounts/{{org}}-synchronizer-apigee.json
-            udca: ./service-accounts/{{org}}-udca-apigee.json
+            synchronizer: ./service-accounts/{{project_id}}-synchronizer-apigee.json
+            udca: ./service-accounts/{{project_id}}-udca-apigee.json
         - name: prod
             # Domain name to which api traffic is sent.
-          hostAlias: "{{org}}-prod.hybrid-apigee.net"
+          hostAlias: "{{project_id}}-prod.hybrid-apigee.net"
             # Certificate for the domain name; this can be self signed.
           sslCertPath: ingress-server.pem
             # Private key for the domain name; this can be self signed.
           sslKeyPath: ingress-server.key
             # Service accounts for sync and UDCA.
           serviceAccountPaths:
-            synchronizer: ./service-accounts/{{org}}-synchronizer-apigee.json
-            udca: ./service-accounts/{{org}}-udca-apigee.json
+            synchronizer: ./service-accounts/{{project_id}}-synchronizer-apigee.json
+            udca: ./service-accounts/{{project_id}}-udca-apigee.json
       mart:
-        hostAlias: "{{org}}-mart.hybrid-apigee.net"
-        serviceAccountPath: ./service-accounts/{{org}}-mart-apigee.json
+        hostAlias: "{{project_id}}-mart.hybrid-apigee.net"
+        serviceAccountPath: ./service-accounts/{{project_id}}-mart-apigee.json
         sslCertPath: mart-server.pem
         sslKeyPath:  mart-server.key
       metrics:
-        serviceAccountPath: ./service-accounts/{{org}}-metrics-apigee.json
+        serviceAccountPath: ./service-accounts/{{project_id}}-metrics-apigee.json
+      # Apigee Connect Agent
+      k8sCluster:
+        name: cluster_name
+        region: cluster_region
+      connect_agent:
+        enabled: false
+        serviceAccountPath: ./service-accounts/{{project_id}}-connect-apigee.json
       ingress:
         enableAccesslog: true
         runtime:

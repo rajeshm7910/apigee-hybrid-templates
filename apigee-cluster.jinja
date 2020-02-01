@@ -15,7 +15,6 @@
 
 {% set CLUSTER_NAME = env['deployment'] + '-' + env['name'] %}
 {% set DEPLOYMENT_NAME = env['deployment'] %}
-
 resources:
 - name: {{ properties['k8s_cluster'].name }}
   type: container.v1.cluster
@@ -121,11 +120,6 @@ resources:
     dependsOn:
     - {{ properties['k8s_cluster'].name }}
   properties:
-    k8s_cluster:
-      name: {{ properties['k8s_cluster'].name }}
-      location: {{ properties['k8s_cluster'].location }}
-      zone: {{ properties['k8s_cluster'].zone }}
-      instanceType: {{ properties['k8s_cluster'].instanceType }}
-      diskSizeGb: {{ properties['k8s_cluster'].diskSizeGb }}
+    k8s_cluster: {{properties['k8s_cluster']}}
     apigee: {{ properties['apigee']}}
           
