@@ -31,6 +31,7 @@ mart-server.pem - The public key for mart
 
 The apigee section of properties is the override.yaml. Change hostAliases and loadbalancers as you wish. In case your org name is same as projectId you can keep the same without any modification. deploy.sh will pick up the right project name and update the overridess..
 
+- Toggle true/false in connect_agent if using apigee connect or direct mart address.
 
 ```
 imports:
@@ -89,6 +90,12 @@ k8s_cluster:
         serviceAccountPath: ./service-accounts/{{org}}-mart-apigee.json
         sslCertPath: mart-server.pem
         sslKeyPath:  mart-server.key
+      k8sCluster:
+        name: cluster_name
+        region: cluster_region
+      connect_agent:
+        enabled: false
+        serviceAccountPath: ./service-accounts/{{project_id}}-connect-apigee.json
       metrics:
         serviceAccountPath: ./service-accounts/{{org}}-metrics-apigee.json
       ingress:
