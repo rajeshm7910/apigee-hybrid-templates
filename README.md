@@ -1,4 +1,4 @@
-# apigee-hyrbid-gcp
+# apigee-hyrbid-templates
 
 This project allows you to install apigee hybid runtime in Google Cloud Platform using GCP's deployment manager.
 
