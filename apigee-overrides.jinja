@@ -16,22 +16,20 @@
 {% set org =  env["project"] %}
 {% set deployment = env["deployment"] %}
 
-{% set CLUSTER_NAME = env['deployment'] + '-' + env['name'] %}
+{% set CLUSTER_NAME = env['deployment'] + '-' + properties['k8s_cluster'].name %}
 {% set DEPLOYMENT_NAME = env['deployment'] %}
 
 resources:
-- name: {{ CLUSTER_NAME }}
+- name: {{ CLUSTER_NAME }}-jumphost
   type: compute.v1.instance   
   metadata:
     dependsOn:
-     - {{ properties['k8s_cluster'].name }}
+     - {{ CLUSTER_NAME }}
      - get-iam-policy
      - patch-iam-policy
   properties:
-    zone: {{ properties['k8s_cluster'].zone }}
-    machineType: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["k8s_cluster"].zone }}/machineTypes/{{ properties["k8s_cluster"].instanceType }}
-    cluster_name: {{ properties["k8s_cluster"].name }}
-    cluster_region: {{ properties["k8s_cluster"].location }}
+    zone: {{ properties['jump_host'].zone }}
+    machineType: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["jump_host"].zone }}/machineTypes/{{ properties["jump_host"].instanceType }}
     tags:
       items:
       -  apigee-hybrid
@@ -59,8 +57,8 @@ resources:
       boot: true
       autoDelete: true
       initializeParams:
-        diskName: {{ CLUSTER_NAME }}-vm-disk
-        sourceImage: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+        diskName: {{ CLUSTER_NAME }}-jumphost-vm-disk
+        sourceImage: {{ properties["jump_host"].imageType }}
     metadata:
       items:
       - key: mart_key
@@ -69,7 +67,7 @@ resources:
       - key: mart_crt
         value: |
           {{ imports[properties['apigee'].mart.sslCertPath] | indent(10)}}
-      {% for env in properties['apigee'].envs  %}
+      {% for env in properties['apigee'].virtualhosts  %}
       - key: ingress_{{ env.name }}_key
         value: |
           {{ imports[ env.sslKeyPath ] | indent(10) }}
@@ -91,14 +89,21 @@ resources:
           }
 
           export_variables() {
-            export ENVS="{{ properties['apigee'].envs }}"
-            export cluster_name="{{ properties["k8s_cluster"].name }}"
+            export ENVS="{{ properties['apigee'].virtualhosts }}"
+            export version="{{ properties['version'] }}"
+            #export version2="{{ properties['version2'] }}"
+            export cluster_name="{{ CLUSTER_NAME }}"
             export cluster_region="{{ properties["k8s_cluster"].location }}"
             export resource={{ DEPLOYMENT_NAME }}
             export project_id=$(gcloud config get-value project)
             export org="{{ properties['apigee'].org }}"
-            export connect_agent="{{ properties['apigee'].connect_agent.enabled }}"
+            if [[ "$org" == "my_project_id" ]]; then
+                export org=$project_id
+             fi
             export mart_dns="{{ properties['apigee'].mart.hostAlias }}"
+            export connect_agent="{{ properties['apigee'].connectAgent.enabled }}"
+            export connect_agent=$(echo $connect_agent | tr '[:upper:]' '[:lower:]')
+
           }
 
           prerequisites() {
@@ -112,7 +117,11 @@ resources:
 
              cd /opt/apigee
 
-             curl -LO https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/$(curl -s https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/current-version.txt)/apigeectl_linux_64.tar.gz
+             version=$(echo $version)
+             #version2=$(echo $version2)
+             #echo $version2
+
+             curl -LO https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/$version/apigeectl_linux_64.tar.gz
 
              tar xvzf apigeectl_linux_64.tar.gz -C .
              mv apigeectl_1.* apigeectl
@@ -147,6 +156,8 @@ resources:
             metadata_value "instance/attributes/mart_key" > $APIGEECTL_HOME/hybrid-files/certs/mart-server.key
             metadata_value "instance/attributes/mart_crt" > $APIGEECTL_HOME/hybrid-files/certs/mart-server.pem
 
+            sed -i.bak "s/my_project_id/$project_id/g" overrides-0.yaml
+
             cat overrides-0.yaml | python -c 'import json, sys, yaml ; y=yaml.safe_load(sys.stdin.read()) ; print(json.dumps(y))' | jq . > overrides-1.json
 
             cat overrides-1.json  | jq '.mart.sslKeyPath = "./certs/mart-server.key"' | jq '.mart.sslCertPath = "./certs/mart-server.pem"' > overrides-2.json
@@ -171,7 +182,7 @@ resources:
 
               metadata_value "instance/attributes/ingress_"$env"_crt" > $APIGEECTL_HOME/hybrid-files/certs/ingress-server-$env.pem
 
-              cat overrides-3.json | jq  --arg env $env '(.envs[] | select(.name==$env)| .sslCertPath) = "./certs/ingress-server-"+$env+".pem" | (.envs[] | select(.name==$env)| .sslKeyPath)|= "./certs/ingress-server-"+$env+".key"'  > overrides-3.tmp.json
+              cat overrides-3.json | jq  --arg env $env '(.virtualhosts[] | select(.name==$env)| .sslCertPath) = "./certs/ingress-server-"+$env+".pem" | (.virtualhosts[] | select(.name==$env)| .sslKeyPath)|= "./certs/ingress-server-"+$env+".key"'  > overrides-3.tmp.json
 
               wait
               mv overrides-3.tmp.json overrides-3.json
@@ -179,10 +190,14 @@ resources:
           
             done
 
+            export mart_dns=$(cat overrides-3.json | jq -r .mart.hostAlias)
+            export org=$(cat overrides-3.json | jq -r .org)
+
+
             python -c 'import sys, yaml, json; yaml.safe_dump(json.load(sys.stdin), sys.stdout, default_flow_style=False)' < overrides-3.json > overrides-3.yaml
 
-            sed -i.bak "s/cluster_name/$cluster_name/g" overrides-3.yaml
-            sed -i.bak "s/cluster_region/$cluster_region/g" overrides-3.yaml
+            sed -i.bak "s/my_cluster_name/$cluster_name/g" overrides-3.yaml
+            sed -i.bak "s/my_cluster_region/$cluster_region/g" overrides-3.yaml
 
             wait
 
@@ -228,13 +243,18 @@ resources:
 
             curl -X POST -H "Content-Type:application/json" -H "Authorization: Bearer $TOKEN"  "https://apigee.googleapis.com/v1/organizations/$org:getSyncAuthorization" -d ''
 
+            
+            curl  -X PUT https://apigee.googleapis.com/v1/organizations/$org -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"name\" : \"$org\",\"properties\" : {\"property\" : [ {\"name\" :\"features.hybrid.enabled\",\"value\" : \"true\"}, {\"name\" : \"features.mart.server.endpoint\",\"value\" : \"https://$mart_dns\"}]}}"
+
+            if [[ "$connect_agent" == "true" ]]; then
 
             curl  -X PUT https://apigee.googleapis.com/v1/organizations/$org -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"name\" : \"$org\",\"properties\" : {\"property\" : [ {\"name\" :\"features.hybrid.enabled\",\"value\" : \"true\"}, {\"name\" : \"features.mart.server.endpoint\",\"value\" : \"https://$mart_dns\"}, {\"name\" :\"features.mart.apigee.connect.enabled\",\"value\" : \"$connect_agent\"}]}}"
+
+            fi
 
             cd /tmp
             echo $ENVS > envs.json
             cat envs.json | python -c 'import json, sys, yaml ; y=yaml.safe_load(sys.stdin.read()) ; print(json.dumps(y))' | jq . > envs-1.json
-
             wait
 
             for row in $(cat envs-1.json | jq -r '.[] | @base64'); 
@@ -242,34 +262,74 @@ resources:
                 _jq() {
                   echo ${row} | base64 --decode | jq -r ${1}
                  }
-
               env=$(_jq '.name')
               echo $env
 
               curl -X POST -H "Content-Type:application/json" -H "Authorization: Bearer $TOKEN"  "https://apigee.googleapis.com/v1/organizations/$org/environments" -d "{\"name\" : \"$env\"}"
-
             done
+          }
 
+          check_status() {
+            counter=$1
+            rm -fr /tmp/container_status.txt
+            $APIGEECTL_HOME/apigeectl check-ready -f overrides/overrides.yaml > /tmp/container_status.txt  2>&1
+            container_status=$(cat /tmp/container_status.txt)
+
+            if [ "$counter" == "10" ]; then 
+                return 
+            fi
+            next_count=$(($counter + 1))
+            echo $next_count
+            if [[ "$container_status" =~ .*"All containers are ready".* ]]; then
+                echo "Containers are ready"
+                sleep 30
+
+            else 
+                echo "Containers are not ready"
+                sleep 60
+                check_status $next_count
+            fi
+            rm -fr /tmp/container_status.txt
+            return
           }
 
           install_hybrid() {
 
-            gcloud container clusters get-credentials {{ properties['k8s_cluster'].name }} --zone {{ properties['k8s_cluster'].zone }}
+            gcloud container clusters get-credentials {{ CLUSTER_NAME }} --zone {{ properties['k8s_cluster'].zone }}
 
             kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
           
             cd $APIGEECTL_HOME/hybrid-files/
          
             $APIGEECTL_HOME/apigeectl init -f overrides/overrides.yaml
-            $APIGEECTL_HOME/apigeectl check-ready -f overrides/overrides.yaml
+            #Check for All Containers Ready
+            #$APIGEECTL_HOME/apigeectl check-ready -f overrides/overrides.yaml
+            check_status 0
+
             $APIGEECTL_HOME/apigeectl apply -f overrides/overrides.yaml --dry-run=true
+            sleep 20
             $APIGEECTL_HOME/apigeectl apply -f overrides/overrides.yaml
+            $APIGEECTL_HOME/apigeectl check-ready -f overrides/overrides.yaml
+
+            #Check fot All Containers Ready
+            check_status 0
 
           }
 
           release_lock() {
             gcloud beta runtime-config configs variables set success/{{ CLUSTER_NAME }}-waiter success --config-name $(ref.{{ CLUSTER_NAME }}-config.name)
           }
+
+          delete_me() {
+
+             deleteAfterSetup="{{ properties['jump_host'].deleteAfterSetup }}"
+             deleteAfterSetup= $(echo $deleteAfterSetup | tr '[:upper:]' '[:lower:]')
+
+             if [[ "$deleteAfterSetup" == "true" ]]; then
+                gcloud -q compute instances delete {{ CLUSTER_NAME }}-jumphost --zone {{ properties['zone'] }}
+             fi
+          }
+
 
           export_variables
           prerequisites
@@ -278,4 +338,5 @@ resources:
           setup_env_synch_and_mart
           install_hybrid
           release_lock
+          delete_me
 

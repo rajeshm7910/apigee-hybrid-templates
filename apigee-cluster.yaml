@@ -32,15 +32,23 @@ resources:
 #  type: apigee-enable-services.jinja
 - name: apigee-service-accounts
   type: apigee-service-accounts.jinja
-  properties:
-    uniqueId : {{uniqueId}}
 - name: apigee-cluster
   type: apigee-cluster.jinja
   metadata:
       dependsOn:
          - apigee-service-accounts
   properties:
+    version: $(curl -s https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/current-version.txt)
+    #version: 1.2.0
+    #version2: $(curl -s https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/current-version.txt)
     # GCP project and cluster
+    jump_host:
+      instanceType: n1-standard-2
+      location: us-east1
+      zone: us-east1-b
+      diskSizeGb: 30
+      imageType: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+      deleteAfterSetup: false 
     k8s_cluster:
       name: apigee-hybrid
       location: us-east1
@@ -53,49 +61,53 @@ resources:
       autoRepair: false
       imageType: COS
     apigee:
-      gcpProjectID: {{project_id}}
-      # Kubernetes cluster name.
-      k8sClusterName: cluster_name
+      gcp:
+        projectID: my_project_id
       # Apigee org name.
-      org: {{org}}
+      org: my_project_id
+      # Kubernetes cluster name details
+      k8sCluster:
+        name: my_cluster_name
+        region: "my_cluster_region"
+      # Apigee org name.
+      virtualhosts:
+      - name: test
+        hostAliases: 
+          - "my_project_id-test.hybrid-apigee.net"
+        sslCertPath: ingress-server.pem
+        sslKeyPath: ingress-server.key
+        routingRules:
+          - env : test
+      - name: prod
+        hostAliases: 
+          - "my_project_id-prod.hybrid-apigee.net"
+        sslCertPath: ingress-server.pem
+        sslKeyPath: ingress-server.key
+        routingRules:
+          - env : prod
       envs:
-            # Apigee environment name.
+          # Apigee environment name.
         - name: test
-            # Domain name to which api traffic is sent.
-          hostAlias: "{{org}}-test.hybrid-apigee.net"
-            # Certificate for the domain name; this can be self signed.
-          sslCertPath: ingress-server.pem
-            # Private key for the domain name; this can be self signed.
-          sslKeyPath: ingress-server.key
-            # Service accounts for sync and UDCA.
           serviceAccountPaths:
-            synchronizer: ./service-accounts/{{project_id}}-synchronizer-apigee.json
-            udca: ./service-accounts/{{project_id}}-udca-apigee.json
+            synchronizer: ./service-accounts/my_project_id-synchronizer-apigee.json
+            udca: ./service-accounts/my_project_id-udca-apigee.json
         - name: prod
-            # Domain name to which api traffic is sent.
-          hostAlias: "{{project_id}}-prod.hybrid-apigee.net"
-            # Certificate for the domain name; this can be self signed.
-          sslCertPath: ingress-server.pem
-            # Private key for the domain name; this can be self signed.
-          sslKeyPath: ingress-server.key
-            # Service accounts for sync and UDCA.
           serviceAccountPaths:
-            synchronizer: ./service-accounts/{{project_id}}-synchronizer-apigee.json
-            udca: ./service-accounts/{{project_id}}-udca-apigee.json
+            synchronizer: ./service-accounts/my_project_id-synchronizer-apigee.json
+            udca: ./service-accounts/my_project_id-udca-apigee.json
+      cassandra:
+        replicaCount : 3
       mart:
-        hostAlias: "{{project_id}}-mart.hybrid-apigee.net"
-        serviceAccountPath: ./service-accounts/{{project_id}}-mart-apigee.json
+        hostAlias: "my_project_id-mart.hybrid-apigee.net"
+        serviceAccountPath: ./service-accounts/my_project_id-mart-apigee.json
         sslCertPath: mart-server.pem
         sslKeyPath:  mart-server.key
       metrics:
-        serviceAccountPath: ./service-accounts/{{project_id}}-metrics-apigee.json
+        serviceAccountPath: ./service-accounts/my_project_id-metrics-apigee.json
       # Apigee Connect Agent
-      k8sCluster:
-        name: cluster_name
-        region: cluster_region
-      connect_agent:
+      connectAgent:
         enabled: false
-        serviceAccountPath: ./service-accounts/{{project_id}}-connect-apigee.json
+        serviceAccountPath: ./service-accounts/my_project_id-connect-apigee.json
       ingress:
         enableAccesslog: true
         runtime:

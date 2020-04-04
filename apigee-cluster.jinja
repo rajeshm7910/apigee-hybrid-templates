@@ -13,15 +13,15 @@
 # limitations under the License.
 
 
-{% set CLUSTER_NAME = env['deployment'] + '-' + env['name'] %}
+{% set CLUSTER_NAME = env['deployment'] + '-' + properties['k8s_cluster'].name %}
 {% set DEPLOYMENT_NAME = env['deployment'] %}
 resources:
-- name: {{ properties['k8s_cluster'].name }}
+- name: {{ CLUSTER_NAME }}
   type: container.v1.cluster
   properties:
     zone: {{ properties['k8s_cluster'].zone }}
     cluster:
-      name: {{ properties['k8s_cluster'].name }}
+      name: {{ CLUSTER_NAME }}
       {% if properties["k8s_cluster"].monitoringService %}
       monitoringService: {{ properties["k8s_cluster"].monitoringService }}
       {% endif %}
@@ -104,7 +104,7 @@ resources:
   properties:
     parent: $(ref.{{ CLUSTER_NAME }}-config.name)
     waiter: {{ CLUSTER_NAME }}-waiter
-    timeout: 900s
+    timeout: 1200s
     success:
       cardinality:
         path: /success
@@ -113,13 +113,15 @@ resources:
       cardinality:
         path: /failure
         number: 1
-
 - type: apigee-overrides.jinja
   name: apigee-cluster
   metadata:
     dependsOn:
-    - {{ properties['k8s_cluster'].name }}
+    - {{ CLUSTER_NAME }}
   properties:
+    version: {{properties['version']}}
+    #version2: {{properties['version2']}}
+    jump_host: {{properties['jump_host']}}
     k8s_cluster: {{properties['k8s_cluster']}}
     apigee: {{ properties['apigee']}}
           
