@@ -40,7 +40,6 @@ resources:
   properties:
     version: $(curl -s https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/current-version.txt)
     #version: 1.2.0
-    #version2: $(curl -s https://storage.googleapis.com/apigee-public/apigee-hybrid-setup/current-version.txt)
     # GCP project and cluster
     jump_host:
       instanceType: n1-standard-2
@@ -48,7 +47,7 @@ resources:
       zone: us-east1-b
       diskSizeGb: 30
       imageType: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
-      deleteAfterSetup: false 
+      deleteAfterSetup: true 
     k8s_cluster:
       name: apigee-hybrid
       location: us-east1

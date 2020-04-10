@@ -6,7 +6,7 @@ This template will do following
 - Create kubernets clusters
 - Create service accounts and assign right roles
 - Install hybrid runtime
-- Post install setup like adding synchronizer and mart end points.
+- Post install setup like adding synchronizer service account and mart end points.
 
 ## Prerequisite
 
@@ -17,9 +17,10 @@ This template will do following
 ```
   gcloud config set project <project-id>
 ```
+- You need to have owner or Editor role to run deployment manager templates.
 
 ## Getting Started
-- Keep Key/Certificate pair in config/ directory
+- Keep following Key/Certificate pair in config/ directory
 
 ingress-server.key - The private key for ingress 
 ingress-server.pem - The public key for ingress
@@ -29,9 +30,11 @@ mart-server.pem - The public key for mart
 
 - Make  changes in apigee-cluster.yaml file. 
 
-The apigee section of properties is the override.yaml. Change hostAliases and loadbalancers as you wish. In case your org name is same as projectId you can keep the same without any modification. deploy.sh will pick up the right project name and update the overridess..
+The apigee section of properties is the override.yaml. Change hostAliases and loadbalancers as you wish. my_project_id, my_cluster_name and my_cluster_region are special key words. They will be populated from the value you define in k8_cluster section.The gcp project is your home project your run this.
 
 - Toggle true/false in connect_agent if using apigee connect or direct mart address.
+- Toggle true/false in deleteAfterSetup if you want the jump host to be deleted after setup.
+- This setup also assumes that for each environment you use the same synchronizer key.
 
 ```
 imports:
@@ -44,66 +47,78 @@ imports:
 - path: config/mart-server.pem
   name: mart-server.pem
 
+jump_host:
+  instanceType: n1-standard-2
+  location: us-east1
+  zone: us-east1-b
+  diskSizeGb: 30
+  imageType: https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/family/debian-9
+  deleteAfterSetup: false 
 k8s_cluster:
-      name: apigee-hybrid
-      location: us-east1
-      zone: us-east1-b
-      initialNodeCount: 3
-      instanceType: n1-standard-4
-      diskSizeGb: 30
-      autoscaling: false
-      autoUpgrade: false
-      autoRepair: false
-      imageType: COS
- apigee:
-      gcpProjectID: {{org}}
-      # Kubernetes cluster name.
-      k8sClusterName: apigee-hybrid
-        # Apigee org name.
-      org: {{org}}
-      envs:
-            # Apigee environment name.
-        - name: test
-            # Domain name to which api traffic is sent.
-          hostAlias: "{{org}}-test.hybrid-apigee.net"
-            # Certificate for the domain name; this can be self signed.
-          sslCertPath: ingress-server.pem
-            # Private key for the domain name; this can be self signed.
-          sslKeyPath: ingress-server.key
-            # Service accounts for sync and UDCA.
-          serviceAccountPaths:
-            synchronizer: ./service-accounts/{{org}}-synchronizer-apigee.json
-            udca: ./service-accounts/{{org}}-udca-apigee.json
-        - name: prod
-            # Domain name to which api traffic is sent.
-          hostAlias: "{{org}}-prod.hybrid-apigee.net"
-            # Certificate for the domain name; this can be self signed.
-          sslCertPath: ingress-server.pem
-            # Private key for the domain name; this can be self signed.
-          sslKeyPath: ingress-server.key
-            # Service accounts for sync and UDCA.
-          serviceAccountPaths:
-            synchronizer: ./service-accounts/{{org}}-synchronizer-apigee.json
-            udca: ./service-accounts/{{org}}-udca-apigee.json
-      mart:
-        hostAlias: "{{org}}-mart.hybrid-apigee.net"
-        serviceAccountPath: ./service-accounts/{{org}}-mart-apigee.json
-        sslCertPath: mart-server.pem
-        sslKeyPath:  mart-server.key
-      k8sCluster:
-        name: cluster_name
-        region: cluster_region
-      connect_agent:
-        enabled: false
-        serviceAccountPath: ./service-accounts/{{project_id}}-connect-apigee.json
-      metrics:
-        serviceAccountPath: ./service-accounts/{{org}}-metrics-apigee.json
-      ingress:
-        enableAccesslog: true
-        runtime:
-          loadBalancerIP: 35.196.24.106
-        mart:
-          loadBalancerIP: 35.185.43.207
+  name: apigee-hybrid
+  location: us-east1
+  zone: us-east1-b
+  initialNodeCount: 3
+  instanceType: n1-standard-4
+  diskSizeGb: 30
+  autoscaling: false
+  autoUpgrade: false
+  autoRepair: false
+  imageType: COS
+apigee:
+  gcp:
+    projectID: my_project_id
+  # Apigee org name.
+  org: my_project_id
+  # Kubernetes cluster name details
+  k8sCluster:
+    name: my_cluster_name
+    region: "my_cluster_region"
+  # Apigee org name.
+  virtualhosts:
+  - name: test
+    hostAliases: 
+      - "my_project_id-test.hybrid-apigee.net"
+    sslCertPath: ingress-server.pem
+    sslKeyPath: ingress-server.key
+    routingRules:
+      - env : test
+  - name: prod
+    hostAliases: 
+      - "my_project_id-prod.hybrid-apigee.net"
+    sslCertPath: ingress-server.pem
+    sslKeyPath: ingress-server.key
+    routingRules:
+      - env : prod
+  envs:
+      # Apigee environment name.
+    - name: test
+      serviceAccountPaths:
+        synchronizer: ./service-accounts/my_project_id-synchronizer-apigee.json
+        udca: ./service-accounts/my_project_id-udca-apigee.json
+    - name: prod
+      serviceAccountPaths:
+        synchronizer: ./service-accounts/my_project_id-synchronizer-apigee.json
+        udca: ./service-accounts/my_project_id-udca-apigee.json
+  cassandra:
+    replicaCount : 3
+  mart:
+    hostAlias: "my_project_id-mart.hybrid-apigee.net"
+    serviceAccountPath: ./service-accounts/my_project_id-mart-apigee.json
+    sslCertPath: mart-server.pem
+    sslKeyPath:  mart-server.key
+  metrics:
+    serviceAccountPath: ./service-accounts/my_project_id-metrics-apigee.json
+  # Apigee Connect Agent
+  connectAgent:
+    enabled: false
+    serviceAccountPath: ./service-accounts/my_project_id-connect-apigee.json
+  ingress:
+    enableAccesslog: true
+    runtime:
+      loadBalancerIP: 35.196.24.106
+    mart:
+      loadBalancerIP: 35.185.43.207 
 
 ```
 
@@ -157,28 +172,22 @@ raj-apigee-id              runtimeconfig.v1beta1.variable  COMPLETED  []
 
 ### IAM Roles
 
-- deploy.sh will add following roles to these service accounts
+deploy.sh will add following roles to these service accounts
 
-[PROJECT-NUMBER]@cloudservices.gserviceaccount.com
+- [PROJECT-NUMBER]@cloudservices.gserviceaccount.com
 
 ```
 Kubernetes Engine Admin
-Editor
 Kubernetes Cluster Admin
 
 ```
 
-- Allocate access to default compute services accouunt -
-
- [PROJECT-NUMBER]-compute@developer.gserviceaccount.com 
+- [PROJECT-NUMBER]-compute@developer.gserviceaccount.com
 
 ```
 Kubernetes Engine Admin
-Editor
 Project IAM Admin
 ```
-
-
 
 ## Undeploy and Clean the deployment
 ```sh
