@@ -61,9 +61,9 @@ resources:
       imageType: COS
     apigee:
       gcp:
-        projectID: my_project_id
+        projectID: apigee-dev-317007
       # Apigee org name.
-      org: my_project_id
+      org: apigee-dev-317007
       # Kubernetes cluster name details
       k8sCluster:
         name: my_cluster_name
@@ -72,14 +72,14 @@ resources:
       virtualhosts:
       - name: test
         hostAliases: 
-          - "my_project_id-test.hybrid-apigee.net"
+          - "apigee-dev-317007-test.hybrid-apigee.net"
         sslCertPath: ingress-server.pem
         sslKeyPath: ingress-server.key
         routingRules:
           - env : test
       - name: prod
         hostAliases: 
-          - "my_project_id-prod.hybrid-apigee.net"
+          - "apigee-dev-317007-prod.hybrid-apigee.net"
         sslCertPath: ingress-server.pem
         sslKeyPath: ingress-server.key
         routingRules:
@@ -88,21 +88,21 @@ resources:
           # Apigee environment name.
         - name: test
           serviceAccountPaths:
-            synchronizer: ./service-accounts/my_project_id-synchronizer-apigee.json
-            udca: ./service-accounts/my_project_id-udca-apigee.json
+            synchronizer: ./service-accounts/apigee-dev-317007-synchronizer-apigee.json
+            udca: ./service-accounts/apigee-dev-317007-udca-apigee.json
         - name: prod
           serviceAccountPaths:
-            synchronizer: ./service-accounts/my_project_id-synchronizer-apigee.json
-            udca: ./service-accounts/my_project_id-udca-apigee.json
+            synchronizer: ./service-accounts/apigee-dev-317007-synchronizer-apigee.json
+            udca: ./service-accounts/apigee-dev-317007-udca-apigee.json
       cassandra:
         replicaCount : 3
       mart:
-        hostAlias: "my_project_id-mart.hybrid-apigee.net"
-        serviceAccountPath: ./service-accounts/my_project_id-mart-apigee.json
+        hostAlias: "apigee-dev-317007-mart.hybrid-apigee.net"
+        serviceAccountPath: ./service-accounts/apigee-dev-317007-mart-apigee.json
         sslCertPath: mart-server.pem
         sslKeyPath:  mart-server.key
       metrics:
-        serviceAccountPath: ./service-accounts/my_project_id-metrics-apigee.json
+        serviceAccountPath: ./service-accounts/apigee-dev-317007-metrics-apigee.json
       # Apigee Connect Agent
       connectAgent:
         enabled: false
